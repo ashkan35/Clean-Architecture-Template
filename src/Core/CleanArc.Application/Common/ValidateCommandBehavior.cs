@@ -1,42 +1,39 @@
 ﻿using System.Text;
+using CleanArc.Application.Models.Common;
 using FluentValidation;
+using FluentValidation.Results;
 using Mediator;
 
 namespace CleanArc.Application.Common;
 
 public class ValidateCommandBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TResponse : class where TRequest : IRequest<TResponse>
 {
-    private readonly IList<IValidator<TRequest>> _validators;
+    private readonly IEnumerable<IValidator<TRequest>> _validators;
 
-    public ValidateCommandBehavior(IList<IValidator<TRequest>> validators)
+    public ValidateCommandBehavior(IEnumerable<IValidator<TRequest>> validators)
     {
         _validators = validators;
     }
 
 
-    public ValueTask<TResponse> Handle(TRequest message, CancellationToken cancellationToken, MessageHandlerDelegate<TRequest, TResponse> next)
+    public async ValueTask<TResponse> Handle(TRequest message, CancellationToken cancellationToken, MessageHandlerDelegate<TRequest, TResponse> next)
     {
-        var errors = _validators
-            .Select(v => v.Validate(message))
-            .SelectMany(result => result.Errors)
-            .Where(error => error != null)
-            .ToList();
+        var errors = new List<ValidationFailure>();
 
-        if (errors.Any())
+
+        foreach (var validator in _validators)
         {
-            var errorBuilder = new StringBuilder();
+            var validationResult =
+                await validator.ValidateAsync(new ValidationContext<TRequest>(message), cancellationToken);
 
-            errorBuilder.AppendLine("Invalid command, reason: ");
-
-            foreach (var error in errors)
-            {
-                errorBuilder.AppendLine(error.ErrorMessage);
-            }
-
-            throw new Exception(errorBuilder.ToString());
-
+            if (!validationResult.IsValid)
+                errors.AddRange(validationResult.Errors);
         }
 
-        return next(message,cancellationToken);
+        if (errors.Any())
+            throw new ValidationException(errors);
+
+
+        return await next(message, cancellationToken);
     }
 }

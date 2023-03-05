@@ -8,6 +8,7 @@ using CleanArc.Infrastructure.Identity.Jwt;
 using CleanArc.Infrastructure.Identity.ServiceConfiguration;
 using CleanArc.Infrastructure.Persistence;
 using CleanArc.Infrastructure.Persistence.ServiceConfiguration;
+using CleanArc.SharedKernel.Extensions;
 using CleanArc.Web.Api.Controllers.V1.UserManagement;
 using CleanArc.Web.Plugins.Grpc;
 using CleanArc.WebFramework.Filters;
@@ -37,13 +38,21 @@ builder.Services.AddControllers(options =>
     options.Filters.Add(typeof(ModelStateValidationAttribute));
     options.Filters.Add(typeof(BadRequestResultFilterAttribute));
 
-}).ConfigureApiBehaviorOptions(options => { options.SuppressModelStateInvalidFilter = true; });
-//.AddFluentValidation(cfg => { cfg.RegisterValidatorsFromAssemblyContaining<UserCreateCommand>(); }); //Uncomment for FluentValidation in Application Layer
+}).ConfigureApiBehaviorOptions(options =>
+{
+    options.SuppressModelStateInvalidFilter = true;
+    options.SuppressMapClientErrors = true;
+});
 
 builder.Services.AddSwagger();
 
-builder.Services.AddApplicationServices().RegisterIdentityServices(identitySettings)
-    .AddPersistenceServices(configuration).AddWebFrameworkServices();
+builder.Services.AddApplicationServices()
+    .RegisterIdentityServices(identitySettings)
+    .AddPersistenceServices(configuration)
+    .AddWebFrameworkServices();
+
+builder.Services.RegisterValidatorsAsServices();
+
 
 #region Plugin Services Configuration
 
@@ -80,6 +89,9 @@ if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
 }
+
+app.UseCustomExceptionHandler();
+
 
 app.UseSwaggerAndUI();
 
